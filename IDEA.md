@@ -1,0 +1,2 @@
+Implement Discord Email Verification
+Context: We want to automate our verification process here at Assistive Tech. Our current process is very inefficient as we make members fill out a google form and wait for Srihari (VP External) to check the form in order to be able to use the discord. We can’t just get rid of verification because we’ve had issues in the past with strangers trying to sell stuff. We aren’t looking for you to host the solution, just need to show it works. The best/most complete solution will be used to verify future members.
