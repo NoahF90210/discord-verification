@@ -36,6 +36,7 @@ dist/
 
 # Local tools and operating system
 .hermes/
+treehouse.toml
 .DS_Store
 .idea/
 .vscode/
