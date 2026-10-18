@@ -1,0 +1,47 @@
+[build-system]
+requires = ["hatchling>=1.27,<2"]
+build-backend = "hatchling.build"
+
+[project]
+name = "assistive-tech-discord-verification"
+version = "0.1.0"
+description = "UCSB Assistive Tech Discord email verification bot"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = ["discord.py>=2.6,<3", "python-dotenv>=1.1,<2"]
+
+[project.scripts]
+discord-verification = "discord_verification.__main__:main"
+
+[dependency-groups]
+dev = ["aiosmtpd>=1.4.6,<2", "build>=1.2,<2", "mypy>=1.15,<2", "pytest>=8,<10", "pytest-asyncio>=1,<2", "pytest-cov>=6,<8", "ruff>=0.11,<1"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/discord_verification"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+# discord.py imports the deprecated stdlib audioop on Python 3.12, even without voice.
+# Keep all other warnings as errors; newer Python uses discord.py's audioop-lts dependency.
+filterwarnings = ["error", "ignore:'audioop' is deprecated and slated for removal in Python 3.13:DeprecationWarning:discord.player"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "ASYNC"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+files = ["src/discord_verification"]
+
+[tool.coverage.run]
+source = ["discord_verification"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true

@@ -1,102 +1,119 @@
 # Discord Verification
 
-Email verification for the UCSB Assistive Tech Discord server.
+A small Python bot for the **UCSB Assistive Tech Discord server**. Members prove access to a university inbox, then receive a verified-member role automatically instead of waiting for Google Form approval.
 
-**Status: planning and repository setup only. The bot is not implemented or ready for use.**
+**Implemented, with automated and local SMTP tests. Real mailbox delivery, live Discord permissions/role grants, and assistive-technology usability still require an authorized live test before club use.** No hosting is included.
 
-## Goal
+## Member experience
 
-Replace the manual Google Form approval process with a Discord bot that verifies access to an approved university email inbox and grants the server's verified-member role.
+1. Join the server and open its verification channel.
+2. Choose **Start verification**, then privately enter first name, last name, and university email.
+3. Check the email inbox and choose **Enter code** in Discord.
+4. Submit the six-digit code to unlock member channels.
 
-The original assignment is preserved in [IDEA.md](IDEA.md).
+The bot captures the Discord user ID automatically. Emails, names, and codes are never posted publicly. **Retry access** recovers an interrupted role grant or restores access after rejoining.
 
-## Planned member experience
+Accepted domains are exactly **`ucsb.edu`** and **`umail.ucsb.edu`**, case-insensitively. Their matching local parts count as the same mailbox for duplicate-account checks. Other subdomains and lookalikes are rejected. Use a primary address without a `+alias`.
 
-1. Join the server with access limited to welcome, verification, and support channels.
-2. Click **Verify** and privately enter first name, last name, and university email.
-3. Receive a one-time code by email.
-4. Enter the code privately in Discord.
-5. Receive the verified-member role and access the member channels.
+## Try the credential-free local demo
 
-Capture the Discord user ID automatically; do not ask members to type a username. Store the current username only as an officer-friendly reference, not as the account identifier.
+Install [uv](https://docs.astral.sh/uv/getting-started/installation/), then run from the implementation checkout:
 
-## Email delivery: use an ordinary mailbox
+```sh
+uv sync --locked
+uv run discord-verification --demo
+```
 
-The bot will send email programmatically through a club-controlled mailbox using authenticated SMTP over TLS. A dedicated transactional-email service such as Resend is not required. Mail still needs a provider to deliver it; the Python program is the sender client, not a self-hosted mail server.
+If reviewing the unmerged implementation, check out the pull request's branch first. The default branch does not receive code until a human merges it.
 
-- Use a club-owned sending account rather than a student's personal account.
-- The provider must permit automated SMTP sending. Authentication may require an app-specific password or OAuth, depending on the provider and account policy.
-- Check sending limits and delivery to actual student inboxes before adoption.
-- Keep credentials in local environment configuration, never in GitHub.
-- Buying an account or domain is not part of the current scope.
+The demo generates a real email, sends it to a **loopback-only SMTP server**, reads back the code, verifies a synthetic member, reopens the database, rejects an alias duplicate and code replay, and persists a **simulated** role grant. Nothing is sent to an external mailbox or Discord. Demo data is temporary and separate from the member database.
 
-The sending mailbox does not need to be a UCSB address. The recipient's approved university address is what the bot verifies.
+## Set up the real bot
 
-## Verification policy
+See **[Setup and live-demo guide](docs/setup.md)** for the full walkthrough:
 
-- Approved recipient domain: **`ucsb.edu`**, as confirmed by the project owner.
-- Match the parsed domain exactly, case-insensitively. Do not accept lookalike domains, suffix matches, or unapproved subdomains.
-- Confirm representative member addresses before rollout. Additional domains require an explicit club policy decision; do not silently broaden the allowlist.
-- Use short-lived, cryptographically generated, single-use codes. Store a protected verifier rather than plaintext codes and never log codes.
-- Bind each challenge to the requesting Discord user, server, and email address.
-- Limit guesses and send requests, enforce resend cooldowns, and invalidate superseded codes.
-- Allow one verified Discord account per email within the server; let officers resolve transfers and exceptions.
-- Persist state across restarts and make role assignment retryable when Discord temporarily fails.
-- Grant only the designated role. Configure the bot with minimal permissions, not Administrator.
+1. Create a Discord application and invite its bot to a test server.
+2. Set up the Verified role and channel permissions.
+3. Copy `.env.example` to a local `.env` and fill in the bot, server, role, and SMTP settings.
+4. Validate and run:
 
-Email verification proves control of an approved inbox, not current enrollment, legal identity, or that a user cannot spam. Names are self-reported. Normal moderation and an officer support path remain necessary.
+```sh
+uv run discord-verification --check
+uv run discord-verification
+```
 
-## Proposed implementation layout
+An officer with **Manage Server** posts the persistent panel with `/verification-panel` in the configured channel. Keep this terminal running during the demonstration; GitHub stores code, it does not host the bot.
 
-These implementation files are planned, not present yet:
+### Email delivery
+
+Uses authenticated, certificate-verified **SMTP over STARTTLS or implicit TLS**. No Resend account, sending API, website, or custom domain is needed. Python's standard library sends through a normal mailbox. iCloud app-specific-password setup is documented in the guide.
+
+The implementation supports SMTP username/password authentication, including provider-issued app passwords. Providers that require OAuth-only SMTP need an additional adapter; OAuth is not implemented. Prefer a club-owned mailbox for adoption; a personal test mailbox is sufficient for a demonstration if you accept that recipients see its sending address.
+
+## Commands and recovery
+
+| Control | Purpose |
+| --- | --- |
+| **Start verification** | Enter name/email, or request a replacement code after cooldown |
+| **Enter code** | Submit the code privately |
+| **Retry access** | Grant the configured role using this account's persisted verification proof |
+| `/verification-panel` | Officer: post a verification panel |
+| `/verification-reset member` | Officer: revoke proof and role, then delete the member record and pending challenge |
+| `/verification-forget` | Member: revoke own verified access and delete own record/pending challenge |
+
+**Officers must use `/verification-reset` to revoke verification**, not merely remove the role: persisted proof deliberately permits Retry access. Removing a role alone does not revoke that proof. Requests to erase a departed member's record can be handled by the authorized operator as described in the guide.
+
+Manual guest exceptions remain a club moderation decision; use a separate guest role, not a fabricated email-verification record.
+
+## Security and data
+
+- Six-digit codes expire after **10 minutes** and allow **5 incorrect guesses** per challenge.
+- Replacement requests invalidate old codes. Resends require **60 seconds** between sends.
+- Persisted rolling-hour limits: **5 submissions per member**, **5 send attempts per canonical email**, **100 send attempts per server**, and **500 total submissions per server**. Duplicate/suppressed submissions consume the member's budget; SMTP failures consume send limits too. Restarting does not reset limits.
+- Generic request and code-entry responses avoid disclosing another member's address status. Suppressed addresses cannot verify, even if their generated decoy code is guessed. No email is sent for them; contact an officer if a legitimate address does not receive a code.
+- Codes are stored as keyed HMAC verifiers, not plaintext. Successful consumption and email uniqueness use SQLite transactions.
+- Role grants are retryable after API failures and process restarts.
+- Wrong server/channel, bot accounts, unsafe role hierarchy, and verified roles with permissions outside an explicit ordinary-member allowlist are rejected. Unknown future permission bits fail closed; channel overrides still require an operator audit.
+- Neither Message Content nor Server Members privileged intents are needed. Do not grant the bot Administrator.
+- Credentials, databases, exports, logs, and local artifacts are Git-ignored. Runtime errors avoid private exception payloads.
+
+Records contain the server/user IDs, submitted names, username snapshot, verified email, timestamp, and role-grant state. They are private local data, **not encrypted database contents**. Pending challenges expire and are purged approximately every minute while the bot runs; hashed rate-limit records expire after an hour. Verified records remain until explicit deletion. The club must approve its retention/access policy before adoption. See [security and operations](docs/security.md).
+
+Email verification proves control of an inbox—not legal identity, current enrollment, or immunity to spam. Normal moderation is still required.
+
+## Repository
 
 ```text
 src/discord_verification/
-  bot.py            Discord buttons, forms, and role assignment
-  verification.py   Challenge creation, validation, and limits
-  mailer.py         SMTP delivery
-  storage.py        SQLite member and challenge records
-  config.py         Environment configuration and validation
-tests/              Automated verification and failure-path tests
-.env.example        Documented settings with placeholders only
-pyproject.toml      Python dependencies and development commands
+  __main__.py       CLI: run, validate configuration, or local demo
+  bot.py            Persistent Discord buttons, private forms, roles, officer commands
+  config.py         Environment settings and validation
+  verification.py   Address rules, HMAC codes, async orchestration
+  storage.py        Transactional SQLite records, throttles, and cleanup
+  schema.py         Versioned schema and transactional v1-to-v2 migration
+  mailer.py         TLS-only SMTP delivery, off the event loop
+  errors.py         Safe messages suitable for members
+  demo.py           Isolated loopback SMTP demonstration
+tests/              Adversarial, persistence, concurrency, SMTP, and Discord-callback tests
+docs/               Setup, operations, and verification notes
+.github/workflows/  Test/lint/type/build checks only; no deployment
+.env.example        Placeholder configuration
+pyproject.toml      Dependencies and development tools
+uv.lock             Reproducible dependency resolution
 ```
 
-Keep one small Python application using `discord.py` and SQLite. No website, separate database server, or dashboard is planned.
+## Development checks
 
-## Member data and privacy
+```sh
+uv sync --locked
+uv run pytest --cov=discord_verification --cov-report=term-missing
+uv run ruff check .
+uv run ruff format --check .
+uv run mypy
+uv build
+uv run discord-verification --demo
+```
 
-Planned records are server ID, Discord user ID, current username, submitted name, verified email, and verification timestamp. Pending challenges and abuse-control state are separate, short-lived records.
+Tests use synthetic identities, mocked Discord APIs, real loopback SMTP, and a locally generated TLS certificate. They do **not** send verification emails to actual people. See [verification evidence and remaining live checks](docs/verification.md).
 
-- Keep email addresses, names, and codes out of public Discord messages.
-- Restrict database access to authorized club operators.
-- Do not commit member databases, exports, logs, or mailbox credentials.
-- Agree on retention, deletion, and officer access before real members use the bot.
-- Back up retained records securely and document ownership transfer to future officers.
-
-## Acceptance checks before club use
-
-- Demonstrate a real email delivered to an approved inbox and a real role granted in a test Discord server.
-- Confirm unverified users cannot access member channels and verified users can.
-- Test invalid domains, malformed addresses, wrong and expired codes, replay, duplicate emails, and account/server binding.
-- Test resend limits, guess limits, concurrent submissions, SMTP failure, and Discord role-permission failure.
-- Restart the bot and verify persistence and safe recovery of incomplete role assignments.
-- Verify private responses and usable keyboard/screen-reader interaction in Discord.
-- Document installation, bot permissions and role hierarchy, configuration, running, recovery, and officer handoff.
-
-Automated tests and simulated email delivery are useful but do not replace a real Discord-and-email demonstration.
-
-## Still needed before implementation and live testing
-
-- A Discord application/bot and an authorized test server.
-- The target verification channel and verified-member role.
-- A club-controlled SMTP-capable mailbox and its supported authentication method.
-- Agreement on record retention and officer exceptions.
-
-No hosting or deployment is included. A local machine can run the demonstration. Ongoing club use will require an operator to keep the bot running.
-
-## GitHub basics
-
-This repository is the shared project folder and change history. Commits are saved revisions; branches let changes be prepared without altering the main version; pull requests are where those changes can be reviewed before merging.
-
-Repository access does not make it an appropriate place to store secrets or student records, even when the repository is private.
+The original assignment is preserved unchanged in [IDEA.md](IDEA.md).
