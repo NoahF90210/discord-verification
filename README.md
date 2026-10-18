@@ -2,7 +2,9 @@
 
 A small Python bot for the **UCSB Assistive Tech Discord server**. Members prove access to a university inbox, then receive a verified-member role automatically instead of waiting for Google Form approval.
 
-**Implemented, with automated and local SMTP tests. Real mailbox delivery, live Discord permissions/role grants, and assistive-technology usability still require an authorized live test before club use.** No hosting is included.
+Built with Python, discord.py, SQLite, and TLS SMTP. Configuration lives in a local `.env` file; no source-code changes are needed to connect a Discord server and sending mailbox. No website or paid service is required.
+
+**Validation:** automated and local SMTP coverage is documented in [verification notes](docs/verification.md). Real inbox delivery, live Discord role grants/channel permissions, and assistive-technology usability still require authorized live testing before use with members. Club adoption and hosting are not assumed.
 
 ## Member experience
 
@@ -15,40 +17,30 @@ The bot captures the Discord user ID automatically. Emails, names, and codes are
 
 Accepted domains are exactly **`ucsb.edu`** and **`umail.ucsb.edu`**, case-insensitively. Their matching local parts count as the same mailbox for duplicate-account checks. Other subdomains and lookalikes are rejected. Use a primary address without a `+alias`.
 
-## Try the credential-free local demo
+## Installation and configuration
 
-Install [uv](https://docs.astral.sh/uv/getting-started/installation/), then run from the implementation checkout:
-
-```sh
-uv sync --locked
-uv run discord-verification --demo
-```
-
-If reviewing the unmerged implementation, check out the pull request's branch first. The default branch does not receive code until a human merges it.
-
-The demo generates a real email, sends it to a **loopback-only SMTP server**, reads back the code, verifies a synthetic member, reopens the database, rejects an alias duplicate and code replay, and persists a **simulated** role grant. Nothing is sent to an external mailbox or Discord. Demo data is temporary and separate from the member database.
-
-## Set up the real bot
-
-See **[Setup and live-demo guide](docs/setup.md)** for the full walkthrough:
+Use Python 3.12+ and [uv](https://docs.astral.sh/uv/getting-started/installation/). Start with the **[setup and operations guide](docs/setup.md)** for the full walkthrough:
 
 1. Create a Discord application and invite its bot to a test server.
 2. Set up the Verified role and channel permissions.
 3. Copy `.env.example` to a local `.env` and fill in the bot, server, role, and SMTP settings.
-4. Validate and run:
+4. From the repository directory, install dependencies, validate configuration, and run:
 
 ```sh
+uv sync --locked
 uv run discord-verification --check
 uv run discord-verification
 ```
 
-An officer with **Manage Server** posts the persistent panel with `/verification-panel` in the configured channel. Keep this terminal running during the demonstration; GitHub stores code, it does not host the bot.
+`--check` validates configuration syntax only; it does not connect to Discord or SMTP. An officer with **Manage Server** posts the persistent panel with `/verification-panel` in the configured channel.
+
+Run one bot process from this directory, and keep its computer and process running while verification is needed. GitHub stores the code; it does not host the bot. Restart after configuration changes. Before use with members, complete the [live acceptance checklist](docs/setup.md#7-live-acceptance-checklist) and agree on operational ownership and data retention.
 
 ### Email delivery
 
 Uses authenticated, certificate-verified **SMTP over STARTTLS or implicit TLS**. No Resend account, sending API, website, or custom domain is needed. Python's standard library sends through a normal mailbox. iCloud app-specific-password setup is documented in the guide.
 
-The implementation supports SMTP username/password authentication, including provider-issued app passwords. Providers that require OAuth-only SMTP need an additional adapter; OAuth is not implemented. Prefer a club-owned mailbox for adoption; a personal test mailbox is sufficient for a demonstration if you accept that recipients see its sending address.
+The implementation supports SMTP username/password authentication, including provider-issued app passwords. Providers that require OAuth-only SMTP need an additional adapter; OAuth is not implemented. Use an authorized test mailbox for evaluation; if the club adopts the bot, prefer a club-owned mailbox. Recipients see the sending address.
 
 ## Commands and recovery
 
@@ -101,6 +93,17 @@ docs/               Setup, operations, and verification notes
 pyproject.toml      Dependencies and development tools
 uv.lock             Reproducible dependency resolution
 ```
+
+## Optional local smoke test
+
+To evaluate the verification flow without a Discord application or mailbox:
+
+```sh
+uv sync --locked
+uv run discord-verification --demo
+```
+
+This sends a real email to a **loopback-only SMTP server**, verifies a synthetic member, reopens the database, rejects an alias duplicate and code replay, and persists a **simulated** role grant. Nothing is sent to an external mailbox or Discord. Temporary demo data is separate from the member database. This is a development check, not the normal bot mode or evidence of live delivery.
 
 ## Development checks
 

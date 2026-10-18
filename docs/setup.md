@@ -1,6 +1,8 @@
-# Setup and live-demo guide
+# Setup and operations
 
-## 1. Get the implementation
+Configure and run the bot without changing its Python source. Use an authorized test server and mailbox for evaluation; connecting the bot to the club's server is a separate adoption decision. Complete the live checks below before use with members.
+
+## 1. Install
 
 Use Python 3.12 or newer and [uv](https://docs.astral.sh/uv/getting-started/installation/).
 Clone the repository with GitHub Desktop or Git. Because it is private, sign into GitHub with an account that has access.
@@ -10,14 +12,11 @@ git clone https://github.com/NoahF90210/discord-verification.git
 cd discord-verification
 ```
 
-Until the implementation pull request is merged, switch to its feature branch (`feat/email-verification`) before continuing. In GitHub Desktop use the Current Branch menu; in Git use `git switch feat/email-verification`.
-
 ```sh
 uv sync --locked
-uv run discord-verification --demo
 ```
 
-The demo needs no Discord application or mailbox. It uses loopback SMTP and synthetic member data; the role grant is simulated. Test TLS certificate generation uses OpenSSL, available on the supported development/CI environments; install it if the test command reports it missing.
+The default branch contains the implementation; no feature-branch checkout is needed. For a credential-free evaluation first, see the [optional local smoke test](../README.md#optional-local-smoke-test). OpenSSL is required for TLS certificate generation in the automated tests, not for normal bot operation.
 
 ## 2. Create a Discord test application and server
 
@@ -95,11 +94,27 @@ uv run python -c "import secrets; print(secrets.token_urlsafe(48))"
 
 Paste the result into `VERIFICATION_SECRET` locally, not chat or GitHub. Keep it stable across restarts. It protects code verifiers and canonical-email uniqueness. **Back it up securely with the database; a changed secret is rejected against an existing database.** Rotating this secret requires a deliberate migration, not simply editing `.env`.
 
-Defaults:
+### Configuration reference
 
-- `ALLOWED_EMAIL_DOMAINS=ucsb.edu,umail.ucsb.edu` (exact domains, no wildcards).
-- `DATABASE_PATH=data/verification.sqlite3` (relative to the directory from which you run the bot).
-- Application code expiry/rate limits are the fixed defaults documented in the README.
+All supported settings are listed in `.env.example`. Replace every `replace_...` placeholder; never commit the filled-in file. Quote passwords containing spaces or `#` with single quotes, following dotenv syntax.
+
+| Setting | Value to supply |
+| --- | --- |
+| `DISCORD_TOKEN` | Bot token from the Developer Portal; keep private |
+| `DISCORD_GUILD_ID` | ID of the authorized server |
+| `VERIFICATION_CHANNEL_ID` | ID of that server's verification text channel |
+| `VERIFIED_ROLE_ID` | ID of its ordinary Verified Member role, below the bot's role |
+| `VERIFICATION_SECRET` | Generated secret above; keep stable and back up securely with the database |
+| `DATABASE_PATH` | Persistent file path; default `data/verification.sqlite3`, relative to the working directory |
+| `ALLOWED_EMAIL_DOMAINS` | Exact comma-separated domains; default `ucsb.edu,umail.ucsb.edu`, no wildcards |
+| `SMTP_HOST` | Provider's SMTP hostname; the template uses iCloud as an example |
+| `SMTP_PORT` | Provider's port; normally `587` for STARTTLS or `465` for implicit TLS |
+| `SMTP_SECURITY` | `starttls` or `ssl`; plaintext is not supported |
+| `SMTP_USERNAME` | Provider's mailbox login |
+| `SMTP_PASSWORD` | Mailbox SMTP password or provider-issued app password; keep private |
+| `SMTP_FROM` | One plain sender email address authorized by the provider, without a display name |
+
+The default university-domain pair shares a canonical identity for matching local parts. Other alias relationships require a code/policy decision, not just adding domains. Code expiry and rate limits are fixed defaults documented in the [README](../README.md#security-and-data).
 
 For email, explicit `.env` entries for `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURITY`, `SMTP_USERNAME`, `SMTP_PASSWORD`, and `SMTP_FROM` take precedence over inherited shell settings. This prevents stale credentials exported by another project from breaking the normal `uv run discord-verification` command. Missing entries fall back to the environment; environment-only setups still work without a `.env` file. Blank or placeholder local SMTP values fail validation rather than silently using old credentials. SMTP values are read literally, without `${VARIABLE}` expansion.
 
@@ -120,7 +135,7 @@ The normal run connects to Discord and registers commands in the configured serv
 
 An officer with **Manage Server** runs `/verification-panel` **in the configured verification channel**. This posts three persistent buttons. Reposting creates another working panel; delete an older panel manually if desired. On restart, existing panels work without reposting.
 
-## 7. Perform the real acceptance demonstration
+## 7. Live acceptance checklist
 
 Use a non-admin test member account; administrators bypass Discord channel restrictions.
 
@@ -138,7 +153,14 @@ Use a non-admin test member account; administrators bypass Discord channel restr
 
 Do not present local SMTP capture or mocked Discord tests as completion of these live checks.
 
-## Troubleshooting and handoff
+## Routine operation and troubleshooting
+
+- Start from the repository directory with `uv run discord-verification`. Run only **one process per configured server/database**; cross-process Discord role grant/reset operations are not supported.
+- Keep the computer awake and connected while verification is needed. GitHub is not a runtime host. Unattended operation or hosting requires a separate decision.
+- Stop with Ctrl+C. Restart with the same command and configuration; existing panels, unexpired challenges, and persisted rate limits survive restarts.
+- After changing `.env`, stop the bot, run `uv run discord-verification --check`, then start it again. The check does not validate live credentials or permissions.
+- Before an update, stop the bot and securely back up the database and matching secret. Follow the [recovery guidance](security.md#recovery), including schema-migration rollback requirements. Never commit backups.
+- Use `/verification-reset` to revoke a member's proof and access; manual role removal alone is not revocation. Members can use `/verification-forget` to remove their own proof and access.
 
 | Symptom | Check |
 | --- | --- |
@@ -151,8 +173,17 @@ Do not present local SMTP capture or mocked Discord tests as completion of these
 | Channels accessible without verification | Audit `@everyone`, other roles, category sync, and channel overrides; test with a non-admin |
 | Member removed from role can restore it | Use `/verification-reset` to revoke persisted proof, not manual role removal alone |
 
-Run only **one bot process per configured server/database**. Transactions protect code consumption and reservations, but cross-process Discord role grant/reset operations are not a distributed job system.
+## If the club adopts the bot
 
-For handoff: transfer the repository access, application ownership/authorized management, mailbox ownership, protected database/secret backups, and agreed privacy policy through secure channels. Replace your personal demo mailbox with the club's settings. Hosting and unattended operation are separate decisions, not included here.
+Before handing over operation, agree on:
+
+- [ ] An authorized operator and backup contact with repository access and application ownership or authorized management.
+- [ ] A club-owned sending mailbox where possible, with recovery access and SMTP credentials transferred securely.
+- [ ] The computer responsible for running the single bot process, including restarts and updates.
+- [ ] Protected storage and recovery of the database and matching verification secret; test restoration in an isolated environment before relying on the backup.
+- [ ] A privacy notice, retention and backup-deletion policy, officer access, support route, and guest/alumni rules.
+- [ ] Completion of the live acceptance checklist for the intended server and mailbox.
+
+Transfer credentials and member data through secure channels, never GitHub issues, commits, or screenshots. This checklist does not imply adoption, deployment, or live acceptance has occurred.
 
 For a deletion request from a departed member, the authorized operator should stop the bot, securely back up the database if policy permits, and delete that exact user/server's rows from `members` and `challenges` using a trusted SQLite tool. Do not put member records or backups in GitHub. There is no automatic alumni/offboarding sync.
