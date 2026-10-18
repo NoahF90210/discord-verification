@@ -101,7 +101,11 @@ Defaults:
 - `DATABASE_PATH=data/verification.sqlite3` (relative to the directory from which you run the bot).
 - Application code expiry/rate limits are the fixed defaults documented in the README.
 
-Existing environment variables take precedence over `.env`. Always run from the project directory so the intended `.env` and database path are used. On Unix, restrict `.env` permissions with `chmod 600 .env`; protect the containing directory and any backups too.
+For email, explicit `.env` entries for `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURITY`, `SMTP_USERNAME`, `SMTP_PASSWORD`, and `SMTP_FROM` take precedence over inherited shell settings. This prevents stale credentials exported by another project from breaking the normal `uv run discord-verification` command. Missing entries fall back to the environment; environment-only setups still work without a `.env` file. Blank or placeholder local SMTP values fail validation rather than silently using old credentials. SMTP values are read literally, without `${VARIABLE}` expansion.
+
+For all other settings (including the Discord token, server IDs, database path, and verification secret), existing environment variables still take precedence. Restart the bot after editing `.env`; a running process does not reload its settings. No `env -u` workaround is needed for SMTP settings saved in `.env`.
+
+Always run from the project directory so the intended `.env` and database path are used. On Unix, restrict `.env` permissions with `chmod 600 .env`; protect the containing directory and any backups too.
 
 ## 6. Validate and start
 

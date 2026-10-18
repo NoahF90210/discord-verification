@@ -14,3 +14,7 @@ SQLite or SMTP. No message-content or members privileged intent is required.
 Tests use synthetic identities, loopback SMTP, and mocked Discord interactions. They do
 not prove real inbox delivery, real role assignment, or assistive-technology usability.
 Never claim those without a live authorized test. Do not deploy or merge automatically.
+
+Explicit local .env SMTP values override shell values; missing SMTP entries fall back to
+the environment. Keep non-SMTP precedence unchanged. Test conflicts through the actual
+CLI loader, not just Settings.from_env; never inspect real .env files or print secrets.
