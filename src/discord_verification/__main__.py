@@ -8,7 +8,7 @@ import logging
 import os
 import sys
 
-from dotenv import load_dotenv
+from dotenv import dotenv_values, load_dotenv
 
 from discord_verification.config import Settings
 from discord_verification.errors import ConfigError
@@ -33,8 +33,23 @@ def main() -> int:
         return 0
 
     load_dotenv(dotenv_path=".env", override=False)
+    environment = dict(os.environ)
+    # Explicit local SMTP settings win over stale credentials inherited from the shell.
+    # Read them literally so ${...} in a password cannot expand from that stale shell.
+    local = dotenv_values(dotenv_path=".env", interpolate=False)
+    for key in (
+        "SMTP_HOST",
+        "SMTP_PORT",
+        "SMTP_SECURITY",
+        "SMTP_USERNAME",
+        "SMTP_PASSWORD",
+        "SMTP_FROM",
+    ):
+        value = local.get(key)
+        if value is not None:
+            environment[key] = value
     try:
-        settings = Settings.from_env(os.environ)
+        settings = Settings.from_env(environment)
     except ConfigError as error:
         print(f"Configuration error: {error}", file=sys.stderr)
         return 2
