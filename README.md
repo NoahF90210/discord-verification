@@ -94,7 +94,7 @@ pyproject.toml      Dependencies and development tools
 uv.lock             Reproducible dependency resolution
 ```
 
-## Optional local smoke test
+## Optional local test
 
 To evaluate the verification flow without a Discord application or mailbox:
 
